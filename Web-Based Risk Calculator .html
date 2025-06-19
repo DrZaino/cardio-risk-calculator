@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Cardiac and Non-Cardiac Death Probability Calculator</title>
+    <style>
+        body {
+            background-image: url('https://images.pexels.com/photos/4386466/pexels-photo-4386466.jpeg?auto=compress&cs=tinysrgb&w=1350');
+            background-color: #FF69B4;
+            background-size: cover;
+            background-repeat: no-repeat;
+            font-family: Arial, sans-serif;
+            color: white;
+            padding: 2rem;
+            max-width: 900px; /* Example: Set a maximum width for the body */
+            margin: 0 auto; /* Center the body content horizontally */
+        }
+
+        .container {
+            max-width: 550px;
+            margin: 0 auto;
+            background-color: #1a1a1a;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 10px #00bfff;
+        }
+
+        h1 {
+            color: #00bfff;
+            text-align: center;
+        }
+
+        label {
+            display: block;
+            margin-top: 1rem;
+            margin-bottom: 0.3rem; /* Added spacing below labels */
+        }
+
+        #dataSource {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            background-color: #e0f5fa; /* Default background */
+            color: #322;
+            margin-top: 0.5rem;
+            margin-bottom: 0.8rem;
+        }
+
+        #dataSource.simulated-selected {
+            background-color: #e0f7fa; /* Light cyan for simulated */
+            color: #00838f;
+        }
+
+        #dataSource.nhanes-selected {
+            background-color: #fbe9e7; /* Light orange for nhanes */
+            color: #d84314;
+        }
+
+        .slider-container {
+            margin-top: 0.4rem;
+            margin-bottom: 1rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .slider-value {
+            font-size: 1rem;
+            color: orange;
+            margin-top: 0.2rem;
+            text-align: center;
+        }
+
+        .calculate-button {
+            margin-top: 2rem;
+            background-color: #00bfff; /* Hell blue */
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-weight: bold;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: transform 0.2s ease, background-color 0.3s ease;
+            width: 100%;
+        }
+
+        .calculate-button:hover {
+            background-color: #009acd; /* Darker blue */
+            transform: scale(1.05);
+        }
+
+        .result-container {
+            margin-top: 1.5rem;
+            background-color: #004466;
+            padding: 1rem;
+            border-radius: 8px;
+            color: #90ee90;
+            font-weight: bold;
+            display: none;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.15rem; /* Reduced spacing between result rows */
+        }
+
+        .result-label {
+            color: #eee;
+        }
+
+        .interpretation {
+            font-style: italic;
+            color: #ccc;
+            font-size: 0.9rem;
+            margin-bottom: 0.3rem; /* Added spacing below interpretation */
+        }
+
+        .warning {
+            margin-top: 2rem;
+            background-color: #222;
+            border-left: 4px solid red;
+            padding: 1rem;
+            border-radius: 5px;
+            color: #ffcccc;
+            font-size: 0.9rem;
+        }
+
+        .warning span {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .relative-difference {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.9rem;
+        }
+
+        .relative-difference-label {
+            color: #eee;
+        }
+
+        .relative-difference-value {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Cardiac and Non-Cardiac Death Probability Calculator</h1>
+
+        <label for="dataSource">Data Source:</label>
+        <select id="dataSource" onchange="updateDataSourceColor()">
+            <option value="simulated">Simulated Data (45-65)</option>
+            <option value="nhanes">NHANES Data (45-65)</option>
+        </select>
+
+        <label for="startAgeSlider">Starting Age (45-64):</label>
+        <div class="slider-container">
+            <input type="range" id="startAgeSlider" min="45" max="64" value="45" oninput="updateStartAgeValue(this.value)">
+            <div id="startAgeValue" class="slider-value">45</div>
+        </div>
+
+        <label for="endAgeSlider">Ending Age (46-65):</label>
+        <div class="slider-container">
+            <input type="range" id="endAgeSlider" min="46" max="65" value="46" oninput="updateEndAgeValue(this.value)">
+            <div id="endAgeValue" class="slider-value">46</div>
+        </div>
+
+        <button class="calculate-button" onclick="calculateProbability()">Calculate Probability</button>
+
+        <div id="resultContainer" class="result-container" style="display:none;">
+            <div class="result-row">
+                <span class="result-label">Cardiac Death Probability (KM):</span>
+                <span id="cardiacProbKM"></span>
+            </div>
+            <div id="interpretationKM" class="interpretation">
+                Kaplan-Meier estimates the probability of dying from any cause (cardiac or non-cardiac) within the age range of <span id="startAgeKM"></span> to <span id="endAgeKM"></span> years, treating non-cardiac deaths as censored.
+            </div>
+            <div class="result-row">
+                <span class="result-label">Cardiac Death Probability (CIF):</span>
+                <span id="cardiacProbCIF"></span>
+            </div>
+            <div id="interpretationCIF" class="interpretation">
+                The Cumulative Incidence Function estimates that the probability of cardiac death, considering other causes, is <span id="cifProbabilityValue"></span> for individuals within the age range of <span id="startAgeCIF"></span> to <span id="endAgeCIF"></span> years.
+            <div class="relative-difference" style="font-size: 1.3rem; font-weight: bold;">
+  <span class="relative-difference-label">KM overestimates risk by:</span>
+  <span id="relativeDifferenceKM" class="relative-difference-value" style="color: red; margin: 0 0.3rem; font-size: 1.4rem;"></span>
+  <span class="relative-difference-label">compared to CIF</span>
+</div>
+
+        <div class="warning">
+            <p>
+                <span>Important Information:</span><br>
+                This calculator provides estimated probabilities of death based on survival data.
+                The cardiac death probabilities are calculated using the Kaplan-Meier method and the Cumulative Incidence Function, considering non-cardiac death as a competing risk. It's crucial to understand that these probabilities are
+                conditional on surviving to the starting age. Individual risk can vary, and this tool should not be used for medical decision-making.
+                <span>Consult a healthcare professional for personalized risk assessment.</span>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const simulatedSurvivalData = {
+            45: { km: 0.000120, cif: 0.00000 },
+            46: { km: 0.0117,   cif: 0.0115  },
+            47: { km: 0.0238,   cif: 0.0230  },
+            48: { km: 0.0352,   cif: 0.0336  },
+            49: { km: 0.0472,   cif: 0.0445  },
+            50: { km: 0.0585,   cif: 0.0543  },
+            51: { km: 0.0700,   cif: 0.0640  },
+            52: { km: 0.0809,   cif: 0.0730  },
+            53: { km: 0.0918,   cif: 0.0817  },
+            54: { km: 0.103,    cif: 0.0902  },
+            55: { km: 0.113,    cif: 0.0982  },
+            56: { km: 0.124,    cif: 0.106   },
+            57: { km: 0.134,    cif: 0.113   },
+            58: { km: 0.144,    cif: 0.120   },
+            59: { km: 0.154,    cif: 0.127   },
+            60: { km: 0.164,    cif: 0.133   },
+            61: { km: 0.174,    cif: 0.139   },
+            62: { km: 0.184,    cif: 0.145   },
+            63: { km: 0.194,    cif: 0.151   },
+            64: { km: 0.203,    cif: 0.156   },
+            65: { km: 0.213,    cif: 0.162   },
+        };
+
+        const nhanesSurvivalData = {
+            45: { km: 0,       cif: 0       },
+            46: { km: 0.00730, cif: 0.00726 },
+            47: { km: 0.0155,  cif: 0.0153  },
+            48: { km: 0.0239,  cif: 0.0234  },
+            49: { km: 0.0337,  cif: 0.0327  },
+            50: { km: 0.0437,  cif: 0.0419  },
+            51: { km: 0.0505,  cif: 0.0480  },
+            52: { km: 0.0573,  cif: 0.0540  },
+            53: { km: 0.0658,  cif: 0.0613  },
+            54: { km: 0.0765,  cif: 0.0702  },
+            55: { km: 0.0910,  cif: 0.0819  },
+            56: { km: 0.102,   cif: 0.0903  },
+            57: { km: 0.113,   cif: 0.0988  },
+            58: { km: 0.123,   cif: 0.106   },
+            59: { km: 0.130,   cif: 0.112   },
+            60: { km: 0.141,   cif: 0.119   },
+            61: { km: 0.148,   cif: 0.124   },
+            62: { km: 0.158,   cif: 0.130   },
+            63: { km: 0.174,   cif: 0.140   },
+            64: { km: 0.186,   cif: 0.148   },
+            65: { km: 0.200,   cif: 0.156   },
+        };
+
+        // Store slider elements globally
+        const startAgeSlider = document.getElementById('startAgeSlider');
+        const endAgeSlider = document.getElementById('endAgeSlider');
+        const startAgeValueDisplay = document.getElementById('startAgeValue');
+        const endAgeValueDisplay = document.getElementById('endAgeValue');
+        const interpretationKMElement = document.getElementById('interpretationKM');
+        const interpretationCIFElement = document.getElementById('interpretationCIF');
+        const kmProbabilityValue = document.getElementById('kmProbabilityValue');
+        const cifProbabilityValue = document.getElementById('cifProbabilityValue');
+
+        function updateDataSourceColor() {
+            const dataSource = document.getElementById('dataSource').value;
+            const dataSourceDropdown = document.getElementById('dataSource');
+            const maxAge = dataSource === 'simulated' ? 65 : 65;
+            const minEndAge = parseInt(startAgeSlider.value) + 1;
+
+            if (dataSource === 'simulated') {
+                dataSourceDropdown.classList.remove('nhanes');
+                dataSourceDropdown.classList.add('simulated');
+                startAgeSlider.max = 64;
+                endAgeSlider.max = 65;
+            } else {
+                dataSourceDropdown.classList.remove('simulated');
+                dataSourceDropdown.classList.add('nhanes');
+                startAgeSlider.max = 64;
+                endAgeSlider.max = 65;
+            }
+
+            endAgeSlider.min = minEndAge;
+            if (parseInt(endAgeSlider.value) < minEndAge) {
+                endAgeSlider.value = minEndAge;
+                endAgeValueDisplay.textContent = minEndAge;
+            }
+        }
+
+        function updateStartAgeValue(value) {
+            startAgeValueDisplay.textContent = value;
+            const minEndAge = parseInt(value) + 1;
+            endAgeSlider.min = minEndAge;
+            if (parseInt(endAgeSlider.value) < minEndAge) {
+                endAgeSlider.value = minEndAge;
+                endAgeValueDisplay.textContent = minEndAge;
+            }
+        }
+
+        function updateEndAgeValue(value) {
+            endAgeValueDisplay.textContent = value;
+        }
+
+        function calculateProbability() {
+            const start = parseInt(startAgeSlider.value);
+            const end = parseInt(endAgeSlider.value);
+            const dataSource = document.getElementById('dataSource').value;
+            const resultContainer = document.getElementById('resultContainer');
+            const cardiacProbKMSpan = document.getElementById('cardiacProbKM');
+            const cardiacProbCIFSpan = document.getElementById('cardiacProbCIF');
+            const relativeDifferenceKMDiv = document.getElementById('relativeDifferenceKM');
+            const startAgeKMElement = document.getElementById('startAgeKM');
+            const endAgeKMElement = document.getElementById('endAgeKM');
+            const startAgeCIFElement = document.getElementById('startAgeCIF');
+            const endAgeCIFElement = document.getElementById('endAgeCIF');
+            const kmProbabilityValue = document.getElementById('kmProbabilityValue');
+            const cifProbabilityValue = document.getElementById('cifProbabilityValue');
+
+            let survivalData = dataSource === 'simulated' ? simulatedSurvivalData : nhanesSurvivalData;
+            const maxAge = dataSource === 'simulated' ? 65 : 65;
+
+            if (end <= start || end > maxAge) {
+                resultContainer.style.display = 'block';
+                resultContainer.style.color = '#ff6666';
+                resultContainer.innerHTML = `<div style="color: #ff6666;">Please select an ending age greater than the starting age.</div>`;
+                return;
+            }
+
+            const kmStart = survivalData[start]?.km;
+            const kmEnd = survivalData[end]?.km;
+            const cifStart = survivalData[start]?.cif;
+            const cifEnd = survivalData[end]?.cif;
+
+            if (kmStart === undefined || kmEnd === undefined || cifStart === undefined || cifEnd === undefined || kmEnd < kmStart || cifEnd < cifStart) {
+                resultContainer.style.display = 'block';
+                resultContainer.style.color = '#ff6666';
+                resultContainer.innerHTML = `<div style="color: #ff6666;">Invalid data range selected.</div>`;
+                return;
+            }
+
+            const cardiacProbKM = kmEnd - kmStart;
+            const cardiacProbCIF = cifEnd - cifStart;
+
+            let relativeDifference = 0;
+            if (cardiacProbCIF !== 0) {
+                relativeDifference = ((cardiacProbKM - cardiacProbCIF) / cardiacProbCIF) * 100;
+            }
+
+            resultContainer.style.display = 'block';
+            resultContainer.style.color = '#90ee90';
+            cardiacProbKMSpan.textContent = `${(cardiacProbKM * 100).toFixed(2)}%`;
+            cardiacProbCIFSpan.textContent = `${(cardiacProbCIF * 100).toFixed(2)}%`;
+            relativeDifferenceKMDiv.textContent = `${relativeDifference.toFixed(2)}%`;
+
+            startAgeKMElement.textContent = start;
+            endAgeKMElement.textContent = end;
+            startAgeCIFElement.textContent = start;
+            endAgeCIFElement.textContent = end;
+
+            // Remove the non-cardiac death information from the displayed results
+            const nonCardiacProbCIFSpan = document.getElementById('nonCardiacProbCIF');
+            if (nonCardiacProbCIFSpan) {
+                nonCardiacProbCIFSpan.parentElement.remove(); // Remove the result row
+            }
+            const nonCardiacInterpretation = document.querySelector('#resultContainer .interpretation:last-child');
+            if (nonCardiacInterpretation) {
+                nonCardiacInterpretation.remove(); // Remove the interpretation
+            }
+        }
+
+        // Initialize the end age options based on the default data source
+        updateDataSourceColor();
+    </script>
+</body>
+</html>
